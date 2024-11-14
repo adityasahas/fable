@@ -1,0 +1,17 @@
+Archive/
+node_modules/
+*__pycache__*
+.pytest_cache
+.vscode/
+package-lock.json
+.DS_Store
+
+logs/
+*.html
+*.json
+!dataset/**/*.json
+
+temp.py
+test.py
+
+*.log
