@@ -1,52 +1,76 @@
-FROM continuumio/anaconda3:2020.11
+FROM continuumio/anaconda3:latest
 
-# ? RUN useradd --system --create-home -d /home/fable --shell /bin/bash -G root -u 1001 fable
-
-# ? USER fable
-# ? WORKDIR /home/fable
-
-# RUN mkdir /home/fable
-RUN mkdir -p /home/fable/deps
-COPY . /home/fable
-
-# ? USER root
 WORKDIR /home/fable
 ENV PYTHONPATH=${PYTHONPATH}:/home/fable
-# Prepare
-RUN mkdir /usr/share/man/man1
-RUN conda config --set changeps1 false 
-# Install Java and other basic tools
-RUN apt update && apt install -y wget \
+
+# Install system dependencies
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    wget \
     curl \
-    openjdk-11-jdk \
-    gcc g++ \
-    net-tools sudo procps
+    default-jdk \
+    gcc \
+    g++ \
+    net-tools \
+    sudo \
+    procps \
+    python3-dev \
+    libxml2-dev \
+    libxslt-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libssl-dev \
+    build-essential \
+    libstdc++6 \
+    libffi-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-
-RUN curl -sL https://deb.nodesource.com/setup_12.x | bash -
-RUN apt install -y nodejs
-
-# Install npm packages
-RUN npm install chrome-remote-interface chrome-launcher yargs
-RUN npm install -g http-server
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get update && \
+    apt-get install -y nodejs && \
+    apt-get clean
 
 # Install Chrome
-RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-RUN apt install -y ./google-chrome-stable_current_amd64.deb && rm google-chrome-stable_current_amd64.deb
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt-get update && \
+    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
+    rm google-chrome-stable_current_amd64.deb && \
+    apt-get clean
 
-# Install python dependencies
-RUN pip install -r requirements.txt
+# Create conda environment
+RUN conda create -n fable_env python=3.8 -y && \
+    conda clean -a -y
+
+# Install dependencies in the conda environment
+SHELL ["conda", "run", "-n", "fable_env", "/bin/bash", "-c"]
+
+# First install core packages
+RUN pip install numpy==1.23.5 pandas==1.5.3 scikit-learn==0.23.2
+
+# Try alternative methods for reppy
+RUN pip install --no-deps robotexclusionrulesparser && \
+    pip install requests-robotstxt
+
+# Copy requirements and modify them
+COPY requirements.txt /tmp/requirements.txt
+RUN sed -i '/reppy/d' /tmp/requirements.txt && \
+    pip install -r /tmp/requirements.txt
+
+# Install npm packages
+RUN npm install chrome-remote-interface chrome-launcher yargs && \
+    npm install -g http-server
+
 # Install boilerpipe
-RUN git clone https://github.com/misja/python-boilerpipe.git deps/python-boilerpipe
-RUN pip install -e deps/python-boilerpipe
+RUN mkdir -p deps && \
+    git clone --depth 1 https://github.com/misja/python-boilerpipe.git deps/python-boilerpipe && \
+    pip install -e deps/python-boilerpipe
 
-# ? USER fable
+# Copy the rest of the application
+COPY . .
 
-ENTRYPOINT python3
-# WORKDIR /home 
-# ENTRYPOINT /bin/sh -c /bin/bash
+EXPOSE 8000
 
-
-# # To run: sudo docker run --rm -it --mount type=bind,src=/mnt/fable-files,target=/mnt/fable-files --name fable fable 
-# # Copy config.yml: sudo docker cp config.yml CONTAINER:/home/fable/fable/
-# ENTRYPOINT ["python3", "rw.py"]
+CMD ["conda", "run", "-n", "fable_env", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
