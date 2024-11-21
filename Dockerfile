@@ -50,14 +50,16 @@ SHELL ["conda", "run", "-n", "fable_env", "/bin/bash", "-c"]
 # First install core packages
 RUN pip install numpy==1.23.5 pandas==1.5.3 scikit-learn==0.23.2
 
-# Try alternative methods for reppy
-RUN pip install --no-deps robotexclusionrulesparser && \
-    pip install requests-robotstxt
-
-# Copy requirements and modify them
+# Install all requirements except reppy
 COPY requirements.txt /tmp/requirements.txt
 RUN sed -i '/reppy/d' /tmp/requirements.txt && \
     pip install -r /tmp/requirements.txt
+
+# Install reppy separately with specific version and dependencies
+RUN pip install python-dateutil==2.8.2 && \
+    pip install six>=1.10.0 && \
+    pip install requests-robotstxt && \
+    pip install reppy==0.4.14
 
 # Install npm packages
 RUN npm install chrome-remote-interface chrome-launcher yargs && \
@@ -70,6 +72,9 @@ RUN mkdir -p deps && \
 
 # Copy the rest of the application
 COPY . .
+
+# Download NLTK data
+RUN python -m nltk.downloader punkt stopwords
 
 EXPOSE 8000
 

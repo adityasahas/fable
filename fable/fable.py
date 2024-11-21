@@ -82,6 +82,9 @@ class AliasFinder:
 
         Return: [ [url, [title,], [aliases (w/ history)], reason] ]
         """
+
+        return []
+
         first_url = urls[0]
         site = he.extract(first_url)
         if self.similar.site is None or site not in self.similar.site:
