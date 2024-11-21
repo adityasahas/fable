@@ -12,7 +12,6 @@ brotli
 dateparser
 python-dateutil
 Unidecode
-reppy<=0.4.14
 url_normalize
 cchardet
 numpy<=1.23.5

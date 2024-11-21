@@ -55,10 +55,13 @@ COPY requirements.txt /tmp/requirements.txt
 RUN sed -i '/reppy/d' /tmp/requirements.txt && \
     pip install -r /tmp/requirements.txt
 
+# Set CXXFLAGS to include <limits> during compilation
+ENV CXXFLAGS="-include limits"
+
 # Install reppy separately with specific version and dependencies
 RUN pip install python-dateutil==2.8.2 && \
-    pip install six>=1.10.0 && \
-    pip install requests-robotstxt && \
+    pip install six==1.11.0 && \
+    pip install "cachetools>=1.0.0,<2.0.0" && \
     pip install reppy==0.4.14
 
 # Install npm packages
