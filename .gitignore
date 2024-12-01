@@ -16,4 +16,7 @@ test.py
 
 *.log
 
-corpus.bson
+mongostuff/
+
+
+venv/

@@ -28,7 +28,7 @@ class AliasFinder:
         self.PS = crawl.ProxySelector(proxies)
         self.histredirector = histredirector.HistRedirector(memo=self.memo,  proxies=proxies)
         self.searcher = searcher.Searcher(memo=self.memo, similar=self.similar, proxies=proxies)
-        self.inferer = inferer.Inferer(memo=self.memo, similar=self.similar, proxies=proxies)
+        # self.inferer = inferer.Inferer(memo=self.memo, similar=self.similar, proxies=proxies)
         self.verifier = verifier.Verifier(fuzzy=1, memo=self.memo, similar=self.similar)
         self.nba = neighboralias.NeighborAlias()
         self.db = db

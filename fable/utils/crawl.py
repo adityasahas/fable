@@ -11,7 +11,6 @@ from os.path import abspath, dirname, join
 import base64
 import threading, queue
 import itertools
-import cchardet
 from urllib.parse import urlparse, urljoin
 import json
 from collections import defaultdict
@@ -22,9 +21,9 @@ import re
 
 from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
-from reppy.robots import Robots
-from reppy.cache import RobotsCache
-from reppy.ttl import HeaderWithDefaultPolicy
+from urllib.robotparser import RobotFileParser
+from collections import defaultdict
+import time
 import sys
 
 sys.path.append('../')
@@ -80,38 +79,65 @@ class RobotParser:
         - Properly delay for specified crawl_delay 
     """
     def __init__(self, useragent=requests_header['user-agent']):
-        policy = HeaderWithDefaultPolicy(default=3600, minimum=600)
         self.useragent = useragent
-        self.rp = RobotsCache(capacity=1000, ttl_policy=policy, headers=requests_header, timeout=10)
-        self.last_request = defaultdict(int) # {hostname: last request ts}
-        self.req_status = {} # Robot url: status_code/'error'
+        self.parsers = {}  # {hostname: (parser, last_fetch_time)}
+        self.last_request = defaultdict(int)  # {hostname: last request ts}
+        self.req_status = {}  # Robot url: status_code/'error'
+        self.cache_timeout = 3600  # Cache robots.txt for 1 hour
+
+    def _get_parser(self, robot_url):
+        current_time = time.time()
+        
+        # Check if we have a cached parser that's still valid
+        if robot_url in self.parsers:
+            parser, fetch_time = self.parsers[robot_url]
+            if current_time - fetch_time < self.cache_timeout:
+                return parser
+
+        # Create new parser
+        parser = RobotFileParser()
+        parser.set_url(robot_url)
+        
+        try:
+            r = requests.get(robot_url, timeout=5, headers={'user-agent': self.useragent})
+            self.req_status[robot_url] = r.status_code
+            if r.status_code == 200:
+                parser.parse(r.text.splitlines())
+            else:
+                parser.allow_all = True
+        except:
+            self.req_status[robot_url] = 'error'
+            parser.allow_all = True
+
+        self.parsers[robot_url] = (parser, current_time)
+        return parser
 
     def allowed(self, url, useragent=None):
         if config.config('user_agent') != self.useragent:
             self.useragent = config.config('user_agent')
-        if useragent is None: useragent = self.useragent
-        self.rp.kwargs['headers'] = {'user-agent': useragent}
+        if useragent is None:
+            useragent = self.useragent
+            
         scheme, netloc = urlparse(url).scheme, urlparse(url).netloc
         robot_url = f'{scheme}://{netloc}/robots.txt'
 
-        # reppy consider 403, 500 as disallow_all. Overwriting this rule
-        if robot_url not in self.req_status:
-            try:
-                r = requests.get(robot_url, timeout=5, headers={'user-agent': useragent})
-                self.req_status[robot_url] = r.status_code
-            except:
-                self.req_status[robot_url] = 'error'
-        if self.req_status[robot_url] == 'error' or self.req_status[robot_url] >= 400 :
-            return True
+        # Handle error cases
+        if robot_url in self.req_status:
+            if self.req_status[robot_url] == 'error' or self.req_status[robot_url] >= 400:
+                return True
 
-        allow = self.rp.allowed(url, useragent)
+        parser = self._get_parser(robot_url)
+        allow = parser.can_fetch(useragent, url)
+        
         if allow:
-            delay = self.rp.get(url).agent(useragent).delay
-            if delay is None: return allow
+            # Handle crawl delay
+            delay = getattr(parser, 'crawl_delay', lambda *args: None)(useragent) or CRAWL_DELAY
             delay = min(CRAWL_DELAY, delay)
             diff = time.time() - self.last_request[netloc]
-            if delay > diff: time.sleep(delay - diff)
+            if delay > diff:
+                time.sleep(delay - diff)
             self.last_request[netloc] = time.time()
+            
         return allow
 
 rp = RobotParser()
@@ -656,7 +682,7 @@ def _breadcrumb_vague(url, html, wayback):
         return max(breadcrumb, key=lambda x: len(x))
     else:
         return []
-    
+
 
 def _breadcrumb(url, html, wayback):
     try:
