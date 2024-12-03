@@ -1,44 +1,53 @@
 FROM continuumio/anaconda3:2020.11
 
+RUN mkdir -p /home/fable/deps
+COPY . /home/fable
 WORKDIR /home/fable
 ENV PYTHONPATH=${PYTHONPATH}:/home/fable
-ENV PYTHONUNBUFFERED=1
-ENV LOG_LEVEL=INFO
 
-# Install system dependencies with debian fix
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check && \
-    apt-get update -o Acquire::AllowInsecureRepositories=true && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated --no-install-recommends \
-    gcc \
-    g++ \
-    python3-dev \
-    build-essential \
-    libxml2-dev \
-    libxslt-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Prepare
+RUN mkdir -p /usr/share/man/man1
 
-# Create conda environment
+# Install Java and other basic tools first
+RUN echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check && \
+    apt-get update --allow-releaseinfo-change && \
+    apt-get install -y \
+    wget \
+    curl \
+    openjdk-11-jdk \
+    gcc g++ \
+    net-tools sudo procps
+
+# Install Node.js
+RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
+    apt-get install -y nodejs
+
+# Install npm packages
+RUN npm install chrome-remote-interface chrome-launcher yargs
+RUN npm install -g http-server
+
+# Install Chrome
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
+    rm google-chrome-stable_current_amd64.deb
+
+# Now set up conda environment
+RUN conda config --set changeps1 false 
 RUN conda create -n fable_env python=3.8 -y && \
     conda clean -a -y
 
 # Activate conda environment
 SHELL ["conda", "run", "-n", "fable_env", "/bin/bash", "-c"]
 
-# Install lxml first
+# Install required Python packages first
 RUN pip install "lxml[html_clean]>=4.9.0"
 
-# Copy and install requirements
-COPY requirements.txt .
+# Install python dependencies
 RUN pip install -r requirements.txt
 
-RUN mkdir -p /var/log/fable && \
-    chmod 777 /var/log/fable
-
-# Copy application code
-COPY . .
+# Install boilerpipe
+RUN git clone https://github.com/misja/python-boilerpipe.git deps/python-boilerpipe && \
+    pip install -e deps/python-boilerpipe
 
 EXPOSE 8000
 
