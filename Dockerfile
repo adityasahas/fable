@@ -2,6 +2,8 @@ FROM continuumio/anaconda3:2020.11
 
 WORKDIR /home/fable
 ENV PYTHONPATH=${PYTHONPATH}:/home/fable
+ENV PYTHONUNBUFFERED=1
+ENV LOG_LEVEL=INFO
 
 # Install system dependencies with debian fix
 RUN apt-get clean && \
@@ -32,9 +34,14 @@ RUN pip install "lxml[html_clean]>=4.9.0"
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+RUN mkdir -p /var/log/fable && \
+    chmod 777 /var/log/fable
+
 # Copy application code
 COPY . .
 
 EXPOSE 8000
 
-CMD ["conda", "run", "-n", "fable_env", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+ENTRYPOINT ["./entrypoint.sh"]
