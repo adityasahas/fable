@@ -8,16 +8,18 @@ ENV PYTHONPATH=${PYTHONPATH}:/home/fable
 # Prepare
 RUN mkdir -p /usr/share/man/man1
 
-# Install Java and other basic tools first
-RUN echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check && \
-    apt-get update --allow-releaseinfo-change && \
-    apt-get install -y \
+RUN echo "deb [trusted=yes] http://archive.debian.org/debian buster main" > /etc/apt/sources.list && \
+    echo "Acquire::Check-Valid-Until false;" > /etc/apt/apt.conf.d/99no-check && \
+    apt-get clean && \
+    apt-get update --allow-unauthenticated
+    
+# Install Java and other basic tools
+RUN apt-get install -y --no-install-recommends \
     wget \
     curl \
     openjdk-11-jdk \
     gcc g++ \
     net-tools sudo procps
-
 # Install Node.js 14.x (more stable than 12.x)
 RUN curl -fsSL https://deb.nodesource.com/setup_14.x | bash - && \
     apt-get install -y nodejs
