@@ -60,7 +60,7 @@ async def startup_event():
     logger.info("Finished startup initialization")
 
 
-@app.post("/find_aliases", response_model=List[AliasResponse])
+@app.post("/find_aliases")
 async def find_aliases(input_urls: List[URLInput]):
     try:
         logger.info("Finding aliases - starting processing")

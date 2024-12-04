@@ -18,12 +18,12 @@ RUN echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check 
     gcc g++ \
     net-tools sudo procps
 
-# Install Node.js
-RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
+# Install Node.js 14.x (more stable than 12.x)
+RUN curl -fsSL https://deb.nodesource.com/setup_14.x | bash - && \
     apt-get install -y nodejs
 
-# Install npm packages
-RUN npm install chrome-remote-interface chrome-launcher yargs
+# Install npm packages with specific versions
+RUN npm install chrome-remote-interface@0.31.3 chrome-launcher@0.15.0 yargs@17.0.1
 RUN npm install -g http-server
 
 # Install Chrome
@@ -48,6 +48,10 @@ RUN pip install -r requirements.txt
 # Install boilerpipe
 RUN git clone https://github.com/misja/python-boilerpipe.git deps/python-boilerpipe && \
     pip install -e deps/python-boilerpipe
+
+# Set Java environment variables
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+ENV PATH=$PATH:$JAVA_HOME/bin
 
 EXPOSE 8000
 
