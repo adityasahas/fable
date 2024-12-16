@@ -59,6 +59,8 @@ RUN git clone https://github.com/misja/python-boilerpipe.git deps/python-boilerp
 ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 ENV PATH=$PATH:$JAVA_HOME/bin
 
+ENV GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/service-account.json
+
 EXPOSE 8000
 
 COPY entrypoint.sh .

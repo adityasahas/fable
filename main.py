@@ -3,15 +3,16 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 from fable import tools, fable
 from fable.utils import url_utils
+from google.cloud import firestore, pubsub_v1
 import logging
 import os
 import sys
 from datetime import datetime
 import uuid
+import json
 import asyncio
 
 os.makedirs("logs", exist_ok=True)
-
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 log_filename = f"logs/fable_api_{timestamp}.txt"
 
@@ -27,6 +28,10 @@ logging.basicConfig(
 logger = logging.getLogger("fable-api")
 
 app = FastAPI()
+
+db = firestore.Client(database="(default)", project="fable-adi")
+publisher = pubsub_v1.PublisherClient()
+topic_path = publisher.topic_path("fable-adi", "fable-tasks")
 
 
 class URLInput(BaseModel):
@@ -56,25 +61,27 @@ class TaskStatus(BaseModel):
 
 class TaskStore:
     def __init__(self):
-        self.tasks: Dict[str, Dict] = {}
+        self.collection = db.collection("tasks")
 
     def create_task(self) -> str:
         task_id = str(uuid.uuid4())
-        self.tasks[task_id] = {
-            "status": "pending",
-            "created_at": datetime.utcnow().isoformat(),
-            "completed_at": None,
-            "result": None,
-            "error": None,
-        }
+        self.collection.document(task_id).set(
+            {
+                "status": "pending",
+                "created_at": datetime.utcnow().isoformat(),
+                "completed_at": None,
+                "result": None,
+                "error": None,
+            }
+        )
         return task_id
 
     def update_task(self, task_id: str, **kwargs):
-        if task_id in self.tasks:
-            self.tasks[task_id].update(kwargs)
+        self.collection.document(task_id).update(kwargs)
 
     def get_task(self, task_id: str) -> Optional[Dict]:
-        return self.tasks.get(task_id)
+        doc = self.collection.document(task_id).get()
+        return doc.to_dict() if doc.exists else None
 
 
 he = url_utils.HostExtractor()
@@ -100,7 +107,11 @@ def init_large_obj(log_file="fable_run"):
         alias_finder = fable.AliasFinder(
             similar=simi, classname=log_file, loglevel=logging.DEBUG
         )
+
+
 task_store = TaskStore()
+
+
 async def process_aliases_task(task_id: str, input_urls: List[URLInput]):
     try:
         results = []
@@ -130,7 +141,6 @@ async def process_aliases_task(task_id: str, input_urls: List[URLInput]):
             completed_at=datetime.utcnow().isoformat(),
             error=str(e),
         )
-
 
 @app.on_event("startup")
 async def startup_event():
@@ -169,15 +179,15 @@ async def start_alias_task(
     task_id = task_store.create_task()
     logger.info(f"Created task ID: {task_id}")
 
+    background_tasks.add_task(process_aliases_task, task_id, input_urls)
+
     response = {
         "task_id": task_id,
         "status": "pending",
-        "created_at": task_store.tasks[task_id]["created_at"],
+        "created_at": task_store.get_task(task_id)["created_at"],
     }
 
-    background_tasks.add_task(process_aliases_task, task_id, input_urls)
     logger.info(f"Added task {task_id} to background processing")
-
     return response
 
 
@@ -188,6 +198,7 @@ async def get_task_status(task_id: str):
         raise HTTPException(status_code=404, detail="Task not found")
 
     return {"task_id": task_id, **task}
+
 
 @app.get("/health")
 async def health_check():

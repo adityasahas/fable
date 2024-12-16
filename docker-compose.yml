@@ -7,8 +7,11 @@ services:
       - "8000:8000"
     volumes:
       - ./logs:/home/fable/logs
+      - ./secrets/service-account.json:/tmp/keys/service-account.json
     environment:
       - PYTHONPATH=/home/fable
+      - GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/service-account.json
+      - GOOGLE_CLOUD_PROJECT=fable-adi
     command: python main.py
 
 volumes:

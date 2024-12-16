@@ -25,3 +25,5 @@ fastapi==0.61.2
 uvicorn==0.11.8
 reppy==0.4.14
 lxml[html_clean]>=4.9.0
+google-cloud-firestore
+google-cloud-pubsub
