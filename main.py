@@ -124,7 +124,23 @@ async def process_aliases_task(task_id: str, input_urls: List[URLInput]):
                 None, alias_finder.run_order, obj.netloc_dir, obj.urls
             )
             logger.info(f"Completed {idx}/{total}: {obj.netloc_dir}")
-            results.append({"netloc_dir": obj.netloc_dir, "aliases": aliases})
+
+            formatted_aliases = []
+            for alias_group in aliases:
+                formatted_aliases.append(
+                    {
+                        "source_url": alias_group[0],
+                        "titles": list(
+                            alias_group[1]
+                        ),  
+                        "target_url": alias_group[2],
+                        "match_types": list(
+                            alias_group[3]
+                        ), 
+                    }
+                )
+
+            results.append({"netloc_dir": obj.netloc_dir, "aliases": formatted_aliases})
 
         task_store.update_task(
             task_id,
@@ -141,6 +157,7 @@ async def process_aliases_task(task_id: str, input_urls: List[URLInput]):
             completed_at=datetime.utcnow().isoformat(),
             error=str(e),
         )
+
 
 @app.on_event("startup")
 async def startup_event():

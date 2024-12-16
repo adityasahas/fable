@@ -61,7 +61,8 @@ ENV PATH=$PATH:$JAVA_HOME/bin
 
 ENV GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/service-account.json
 
-EXPOSE 8000
+ENV PORT=8080
+EXPOSE 8080
 
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
