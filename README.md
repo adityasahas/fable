@@ -3,3 +3,7 @@ This is the repo for paper **Reviving Dead Links on the Web with FABLE** publish
 
 
 More details on how to run will be added soon.
+
+docker build --no-cache -t fable 
+
+docker run --memory=8g --cpus=2 -p 8000:8000 fable

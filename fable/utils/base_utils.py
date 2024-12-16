@@ -31,19 +31,26 @@ def localserver(PORT):
     Create tmp dir at $PROJ_HOME, copy domdistiller.js into the repo
     Serve a local server at port if it not occupied by any others
     """
+    print(f"Starting local server at port {port}")
     cur_path = os.path.dirname(__file__)
     call(['mkdir', '-p', tmp_path])
     if not os.path.exists(os.path.join(tmp_path, 'utils', 'domdistiller.js')):
+        print("Copying domdistiller.js to tmp")
         call(['cp', os.path.join(cur_path, 'domdistiller.js'), tmp_path])
     port_occupied = re.compile(":{}".format(port)).findall(check_output(['netstat', '-nlt']).decode())
     if len(port_occupied) > 0:
         # * Try kill http-server once 
+        print(f"Port {port} occupied by other process")
         call(['pkill', 'http-server'])
+        print(f"Port {port} occupied by other process")
     port_occupied = re.compile(":{}".format(port)).findall(check_output(['netstat', '-nlt']).decode())
+    print(port_occupied)
     if len(port_occupied) <= 0:
         Popen(['http-server', '-a', 'localhost', '-p', str(port), tmp_path], stdout=NULL, stderr=NULL)
     else:
         # * Port is not occupied by http-server 
         print(f"Port {port} occupied by other process", file=sys.stderr)
 
+print("Base utils loaded")
 localserver(port)
+print("Local server started at port", port)
