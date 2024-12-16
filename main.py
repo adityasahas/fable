@@ -10,10 +10,18 @@ from datetime import datetime
 import uuid
 import asyncio
 
+os.makedirs("logs", exist_ok=True)
+
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+log_filename = f"logs/fable_api_{timestamp}.txt"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(log_filename, mode="a"),
+    ],
     force=True,
 )
 logger = logging.getLogger("fable-api")

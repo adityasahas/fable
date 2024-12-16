@@ -1,13 +1,15 @@
-version: '3'
+version: '3.8'
 
 services:
   fable-api:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     ports:
       - "8000:8000"
     volumes:
-      - ./:/home/fable
+      - ./logs:/home/fable/logs
     environment:
       - PYTHONPATH=/home/fable
+    command: python main.py
+
+volumes:
+  logs:

@@ -3,6 +3,10 @@ FROM continuumio/anaconda3:2020.11
 RUN mkdir -p /home/fable/deps
 COPY . /home/fable
 WORKDIR /home/fable
+
+RUN mkdir -p /home/fable/logs && \
+    chmod 777 /home/fable/logs
+
 ENV PYTHONPATH=${PYTHONPATH}:/home/fable
 
 # Prepare
