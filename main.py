@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from fable import tools, fable
 from fable.utils import url_utils
 from google.cloud import firestore, pubsub_v1
@@ -83,6 +83,37 @@ class TaskStore:
         doc = self.collection.document(task_id).get()
         return doc.to_dict() if doc.exists else None
 
+    async def find_existing_results(
+        self, netloc_dir: str, urls: List[str]
+    ) -> Tuple[List[str], Dict[str, dict]]:
+        """
+        Search through completed tasks for matching URLs
+        Returns: (urls_to_process, cached_results)
+        """
+        try:
+            urls_set = set(urls)
+            cached_results = {}
+
+            completed_tasks = self.collection.where(
+                "status", "==", "completed"
+            ).stream()
+
+            for task in completed_tasks:
+                task_data = task.to_dict()
+                if task_data.get("result"):
+                    for result in task_data["result"]:
+                        if result["netloc_dir"] == netloc_dir:
+                            for alias in result["aliases"]:
+                                source_url = alias["source_url"]
+                                if source_url in urls_set:
+                                    cached_results[source_url] = alias
+                                    urls_set.remove(source_url)
+
+            return list(urls_set), cached_results
+        except Exception as e:
+            logger.error(f"Error searching existing results: {str(e)}")
+            return urls, {}
+
 
 he = url_utils.HostExtractor()
 memo = tools.Memoizer()
@@ -119,28 +150,40 @@ async def process_aliases_task(task_id: str, input_urls: List[URLInput]):
 
         for idx, obj in enumerate(input_urls, 1):
             logger.info(f"Processing {idx}/{total}: {obj.netloc_dir}")
-            loop = asyncio.get_event_loop()
-            aliases = await loop.run_in_executor(
-                None, alias_finder.run_order, obj.netloc_dir, obj.urls
-            )
-            logger.info(f"Completed {idx}/{total}: {obj.netloc_dir}")
 
-            formatted_aliases = []
-            for alias_group in aliases:
-                formatted_aliases.append(
-                    {
-                        "source_url": alias_group[0],
-                        "titles": list(
-                            alias_group[1]
-                        ),  
-                        "target_url": alias_group[2],
-                        "match_types": list(
-                            alias_group[3]
-                        ), 
-                    }
+            urls_to_process, cached_results = await task_store.find_existing_results(
+                obj.netloc_dir, obj.urls
+            )
+
+            final_aliases = []
+
+            if cached_results:
+                logger.info(
+                    f"Found {len(cached_results)} cached results for {obj.netloc_dir}"
+                )
+                final_aliases.extend(cached_results.values())
+
+            if urls_to_process:
+                logger.info(
+                    f"Processing {len(urls_to_process)} new URLs for {obj.netloc_dir}"
+                )
+                loop = asyncio.get_event_loop()
+                new_aliases = await loop.run_in_executor(
+                    None, alias_finder.run_order, obj.netloc_dir, urls_to_process
                 )
 
-            results.append({"netloc_dir": obj.netloc_dir, "aliases": formatted_aliases})
+                for alias_group in new_aliases:
+                    formatted_alias = {
+                        "source_url": alias_group[0],
+                        "titles": list(alias_group[1]),
+                        "target_url": alias_group[2],
+                        "match_types": list(alias_group[3]),
+                    }
+                    final_aliases.append(formatted_alias)
+
+                logger.info(f"Completed processing new URLs for {obj.netloc_dir}")
+
+            results.append({"netloc_dir": obj.netloc_dir, "aliases": final_aliases})
 
         task_store.update_task(
             task_id,
@@ -175,9 +218,55 @@ async def find_aliases(input_urls: List[URLInput]):
 
         for idx, obj in enumerate(input_urls, 1):
             logger.info(f"Processing {idx}/{total}: {obj.netloc_dir}")
-            aliases = alias_finder.run_order(obj.netloc_dir, obj.urls)
-            logger.info(f"Completed {idx}/{total}: {obj.netloc_dir}")
-            results.append({"netloc_dir": obj.netloc_dir, "aliases": aliases})
+
+            urls_to_process, cached_results = await task_store.find_existing_results(
+                obj.netloc_dir, obj.urls
+            )
+
+            final_aliases = []
+
+            if cached_results:
+                logger.info(
+                    f"Found {len(cached_results)} cached results for {obj.netloc_dir}"
+                )
+                for alias in cached_results.values():
+                    final_aliases.append(
+                        [
+                            alias["source_url"],
+                            alias["titles"],
+                            alias["target_url"],
+                            alias["match_types"],
+                        ]
+                    )
+
+            if urls_to_process:
+                logger.info(
+                    f"Processing {len(urls_to_process)} new URLs for {obj.netloc_dir}"
+                )
+                new_aliases = alias_finder.run_order(obj.netloc_dir, urls_to_process)
+                final_aliases.extend(new_aliases)
+
+                formatted_aliases = []
+                for alias_group in new_aliases:
+                    formatted_alias = {
+                        "source_url": alias_group[0],
+                        "titles": list(alias_group[1]),
+                        "target_url": alias_group[2],
+                        "match_types": list(alias_group[3]),
+                    }
+                    formatted_aliases.append(formatted_alias)
+
+                task_id = task_store.create_task()
+                task_store.update_task(
+                    task_id,
+                    status="completed",
+                    completed_at=datetime.utcnow().isoformat(),
+                    result=[
+                        {"netloc_dir": obj.netloc_dir, "aliases": formatted_aliases}
+                    ],
+                )
+
+            results.append({"netloc_dir": obj.netloc_dir, "aliases": final_aliases})
 
         return results
     except Exception as e:
@@ -193,6 +282,35 @@ async def start_alias_task(
     input_urls: List[URLInput], background_tasks: BackgroundTasks
 ):
     logger.info("Starting new alias task")
+
+    all_cached_results = []
+    all_cached = True
+
+    for obj in input_urls:
+        urls_to_process, cached_results = await task_store.find_existing_results(
+            obj.netloc_dir, obj.urls
+        )
+        if urls_to_process:
+            all_cached = False
+            break
+        all_cached_results.append(
+            {"netloc_dir": obj.netloc_dir, "aliases": list(cached_results.values())}
+        )
+
+    if all_cached:
+        task_id = task_store.create_task()
+        task_store.update_task(
+            task_id,
+            status="completed",
+            completed_at=datetime.utcnow().isoformat(),
+            result=all_cached_results,
+        )
+        return {
+            "task_id": task_id,
+            "status": "completed",
+            "created_at": task_store.get_task(task_id)["created_at"],
+        }
+
     task_id = task_store.create_task()
     logger.info(f"Created task ID: {task_id}")
 
