@@ -50,6 +50,8 @@ RUN pip install "lxml[html_clean]>=4.9.0"
 
 # Install python dependencies
 RUN pip install -r requirements.txt
+# to use mongo srv urls
+RUN pip install dnspython>=2.3.0 pymongo[srv,tls] certifi
 
 # Install boilerpipe
 RUN git clone https://github.com/misja/python-boilerpipe.git deps/python-boilerpipe && \
@@ -59,7 +61,6 @@ RUN git clone https://github.com/misja/python-boilerpipe.git deps/python-boilerp
 ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 ENV PATH=$PATH:$JAVA_HOME/bin
 
-ENV GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/service-account.json
 
 ENV PORT=8080
 EXPOSE 8080

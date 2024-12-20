@@ -1,9 +1,9 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Tuple
-from fable import tools, fable
+from fable import tools, fable, config
 from fable.utils import url_utils
-from google.cloud import firestore, pubsub_v1
+
 import logging
 import os
 import sys
@@ -28,10 +28,6 @@ logging.basicConfig(
 logger = logging.getLogger("fable-api")
 
 app = FastAPI()
-
-db = firestore.Client(database="(default)", project="fable-adi")
-publisher = pubsub_v1.PublisherClient()
-topic_path = publisher.topic_path("fable-adi", "fable-tasks")
 
 
 class URLInput(BaseModel):
@@ -61,27 +57,31 @@ class TaskStatus(BaseModel):
 
 class TaskStore:
     def __init__(self):
-        self.collection = db.collection("tasks")
+        self.db = config.DB 
+        self.collection = self.db.tasks  
+
+        self.collection.create_index("status")
+        self.collection.create_index("created_at")
 
     def create_task(self) -> str:
         task_id = str(uuid.uuid4())
-        self.collection.document(task_id).set(
-            {
-                "status": "pending",
-                "created_at": datetime.utcnow().isoformat(),
-                "completed_at": None,
-                "result": None,
-                "error": None,
-            }
-        )
+        task = {
+            "_id": task_id,
+            "status": "pending",
+            "created_at": datetime.utcnow().isoformat(),
+            "completed_at": None,
+            "result": None,
+            "error": None,
+        }
+        self.collection.insert_one(task)
         return task_id
 
     def update_task(self, task_id: str, **kwargs):
-        self.collection.document(task_id).update(kwargs)
+        self.collection.update_one({"_id": task_id}, {"$set": kwargs})
 
     def get_task(self, task_id: str) -> Optional[Dict]:
-        doc = self.collection.document(task_id).get()
-        return doc.to_dict() if doc.exists else None
+        task = self.collection.find_one({"_id": task_id})
+        return task if task else None
 
     async def find_existing_results(
         self, netloc_dir: str, urls: List[str]
@@ -94,14 +94,11 @@ class TaskStore:
             urls_set = set(urls)
             cached_results = {}
 
-            completed_tasks = self.collection.where(
-                "status", "==", "completed"
-            ).stream()
+            completed_tasks = self.collection.find({"status": "completed"})
 
             for task in completed_tasks:
-                task_data = task.to_dict()
-                if task_data.get("result"):
-                    for result in task_data["result"]:
+                if task.get("result"):
+                    for result in task["result"]:
                         if result["netloc_dir"] == netloc_dir:
                             for alias in result["aliases"]:
                                 source_url = alias["source_url"]
