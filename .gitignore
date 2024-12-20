@@ -12,7 +12,6 @@ logs/
 !dataset/**/*.json
 
 temp.py
-test.py
 
 *.log
 
