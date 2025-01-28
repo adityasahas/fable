@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional, Tuple
 from fable import tools, fable, config
 from fable.utils import url_utils
+from tests.test_utils import test_domdistiller
 
 import logging
 import os
@@ -336,3 +337,8 @@ async def get_task_status(task_id: str):
 async def health_check():
     logger.info("Health check requested")
     return {"status": "healthy"}
+
+@app.get("/test_domdistiller")
+async def test_domdistiller_endpoint():
+    title, content = test_domdistiller()
+    return {"title": title, "content": content}
