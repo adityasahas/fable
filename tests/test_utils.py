@@ -59,8 +59,7 @@ def test_domdistiller():
     html = crawl.requests_crawl(url)
     title = text_utils.extract_title(html, version='domdistiller')
     content = text_utils.extract_body(html, version='domdistiller')
-    print("Title:", title)
-    print("Content:", content)
-    return title, content
-
-test_domdistiller()
+    return {
+        "title": title,
+        "content": content
+    }

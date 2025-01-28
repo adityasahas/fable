@@ -339,6 +339,10 @@ async def health_check():
     return {"status": "healthy"}
 
 @app.get("/test_domdistiller")
-async def test_domdistiller_endpoint():
-    title, content = test_domdistiller()
-    return {"title": title, "content": content}
+async def test_domdistiller_endpoint(url: str = None):
+    try:
+        result = test_domdistiller(url) if url else test_domdistiller()
+        return result
+    except Exception as e:
+        logger.error(f"Error in domdistiller test: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

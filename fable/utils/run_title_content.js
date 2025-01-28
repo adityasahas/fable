@@ -33,7 +33,7 @@ async function writeTitleContent(Runtime, filename) {
 async function startChrome(){
     const os = process.platform;
     assert(os == 'linux' | os == 'darwin')
-    const path = os == 'linux' ? '/opt/google/chrome/chrome' : '/Applications/Chromium.app/Contents/MacOS/Chromium'
+    const path = os == 'linux' ? '/usr/bin/google-chrome' : '/Applications/Chromium.app/Contents/MacOS/Chromium'
     
     let chromeFlags = [
         '--disk-cache-size=1', 
