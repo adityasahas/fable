@@ -29,46 +29,72 @@ async function startChrome(){
     assert(os == 'linux' | os == 'darwin')
     const path = os == 'linux' ? '/usr/bin/google-chrome' : '/Applications/Chromium.app/Contents/MacOS/Chromium'
     
+    const debugPort = 9222;  // Fixed port
+    
     let chromeFlags = [
-        '--disk-cache-size=1', 
-        '-disable-features=IsolateOrigins,site-per-process',
+        '--headless=new',
+        '--disable-gpu',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        `--remote-debugging-address=0.0.0.0`,  // Listen on all interfaces
+        `--remote-debugging-port=${debugPort}`
     ];
     
-    if (process.env.ROOT_USER) {
-        chromeFlags.push('--no-sandbox');
+    console.log('Starting Chrome with path:', path);
+    console.log('Chrome flags:', chromeFlags.join(' '));
+    
+    try {
+        const chrome = await chromeLauncher.launch({
+            chromeFlags: chromeFlags,
+            chromePath: path,
+            startingUrl: process.argv[2],
+            port: debugPort
+        });
+        
+        console.log('Chrome started on port:', chrome.port);
+        return chrome;
+    } catch (err) {
+        console.error('Failed to start Chrome:', err);
+        process.exit(1);
     }
-
-    if (os == 'linux') chromeFlags.push('--headless')
-    const chrome = await chromeLauncher.launch({
-        chromeFlags: chromeFlags,
-        chromePath: path,
-        // userDataDir: '/tmp/nonexistent' + Date.now(), 
-    })
-    return chrome;
 }
-
 
 (async function(){
     const chrome = await startChrome();
     let filename = argv.filename
-    const timeout = argv.timeout ? parseInt(argv.timeout) * 1000 : 10000;
+    const timeout = argv.timeout ? parseInt(argv.timeout) * 1000 : 30000;
     // let pidname = filename.substr(0, filename.length-5)
 
     let screenshot = argv.screenshot; 
     
 
     try {
-        const client = await CDP({port: chrome.port});
+        console.log('Connecting to Chrome debugging port...');
+        const client = await CDP({
+            host: 'localhost',
+            port: chrome.port,
+            target: (targets) => targets[0]  
+        });        
+        console.log('Connected to Chrome debugging port');
+        
         const { Network, Page, Security, Runtime} = client;
 
         await Security.setIgnoreCertificateErrors({ ignore: true });
-        //Security.disable();
 
         await Network.enable();
         await Page.enable();
 
+        Network.responseReceived((params) => {
+            console.log(`Received response: ${params.response.status} ${params.response.url}`);
+        });
+
+        Network.loadingFailed((params) => {
+            console.error('Loading failed:', params.errorText);
+        });
+
+        console.log('Navigating to URL:', process.argv[2]);
         await Page.navigate({ url: process.argv[2] });
-        
         await Promise.race([
             Page.loadEventFired(),
             new Promise(function(_, reject) {

@@ -27,7 +27,12 @@ RUN apt-get install -y --no-install-recommends \
     dbus \
     dbus-x11 \
     libdbus-1-3 \
-    libdbus-glib-1-2
+    libdbus-glib-1-2 \
+    chromium \
+    chromium-driver \
+    libnss3 \
+    libgbm1 \
+    libasound2
 
 RUN mkdir -p /var/run/dbus && \
     chown messagebus:messagebus /var/run/dbus && \

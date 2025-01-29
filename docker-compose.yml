@@ -4,6 +4,7 @@ services:
   fable-api:
     build: .
     network_mode: "host"
+    privileged: true
     volumes:
       - ./logs:/home/fable/logs
       - ./secrets/service-account.json:/tmp/keys/service-account.json
@@ -11,6 +12,5 @@ services:
       - PYTHONPATH=/home/fable
       - MONGO_URL=mongodb://localhost:27017/fable
     command: python main.py
-
 volumes:
   logs:

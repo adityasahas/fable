@@ -478,7 +478,11 @@ def domdistiller_extract(html, lang=None):
     url = 'http://localhost:{}/{}'.format(config.LOCALSERVER_PORT, html_id)
     for _ in range(3):
         try:
-            call(['node', join(dirname(abspath(__file__)), 'run_content.js'), url, '--filename', html_file, '--timeout', str(10)], timeout=15)
+            call(['node', join(dirname(abspath(__file__)), 'run_content.js'), 
+                    url, 
+                    '--filename', html_file, 
+                    '--timeout', str(30)],
+                    timeout=35)            
             break
         except Exception as e:
             print("dom extract", str(e))
@@ -646,7 +650,11 @@ def domdistiller_title_extract(html, lang=None):
     url = 'http://localhost:{}/{}'.format(config.LOCALSERVER_PORT, html_id)
     for _ in range(3):
         try:
-            call(['node', join(dirname(abspath(__file__)), 'run_title.js'), url, '--filename', html_file, '--timeout', str(10)], timeout=15)
+            call(['node', join(dirname(abspath(__file__)), 'run_content.js'), 
+                    url, 
+                    '--filename', html_file, 
+                    '--timeout', str(30)],  
+                    timeout=35)            
             break
         except Exception as e:
             print("dom extract", str(e))
@@ -741,7 +749,11 @@ def domdistiller_title_body_extract(html, lang=None):
     url = 'http://localhost:{}/{}'.format(config.LOCALSERVER_PORT, html_id)
     for _ in range(3):
         try:
-            call(['node', join(dirname(abspath(__file__)), 'run_title_content.js'), url, '--filename', html_file, '--timeout', str(10)], timeout=15)
+            call(['node', join(dirname(abspath(__file__)), 'run_content.js'), 
+                    url, 
+                    '--filename', html_file, 
+                    '--timeout', str(30)],  # Increase Node timeout to 30 seconds 
+                    timeout=35)
             break
         except Exception as e:
             print("dom extract", str(e))

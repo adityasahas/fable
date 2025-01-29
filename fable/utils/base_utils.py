@@ -46,7 +46,7 @@ def localserver(PORT):
     port_occupied = re.compile(":{}".format(port)).findall(check_output(['netstat', '-nlt']).decode())
     print(port_occupied)
     if len(port_occupied) <= 0:
-        Popen(['http-server', '-a', 'localhost', '-p', str(port), tmp_path], stdout=NULL, stderr=NULL)
+        Popen(['http-server', '-a', '0.0.0.0', '-p', str(port), tmp_path], stdout=NULL, stderr=NULL)
     else:
         # * Port is not occupied by http-server 
         print(f"Port {port} occupied by other process", file=sys.stderr)
